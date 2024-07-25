@@ -1,3 +1,4 @@
 .idea
 *.uf2
 *.bin
+vendor
