@@ -7,9 +7,10 @@ import (
 	"image/color"
 	"machine"
 	"machine/usb"
+	"time"
+	"tinygo.org/x/drivers/mcp23017"
 	"tinygo.org/x/tinydraw"
 
-	"tinygo.org/x/drivers/mcp23017"
 	"tinygo.org/x/drivers/ssd1306"
 
 	keyboard "github.com/percyjw-2/tinygo-keyboard"
@@ -23,10 +24,12 @@ type RCS struct {
 func main() {
 	usb.Product = "popcorne"
 
+	time.Sleep(3 * time.Second)
+
 	err := machine.I2C0.Configure(machine.I2CConfig{
 		Frequency: 400 * machine.KHz,
-		SCL:       machine.P1_13,
-		SDA:       machine.P0_29,
+		SCL:       machine.P0_29,
+		SDA:       machine.P1_13,
 	})
 
 	if err != nil {
@@ -35,14 +38,19 @@ func main() {
 
 	ch := make(chan RCS, 16)
 
+	expander, err := mcp23017.NewI2C(machine.I2C0, 0x20)
+
+	if err != nil {
+		fmt.Printf("Failed to create I2C device IO Expander: %s\n", err)
+	}
+
 	display := ssd1306.NewI2C(machine.I2C0)
 	display.Configure(ssd1306.Config{
-		Width:  128,
-		Height: 32,
+		Width:   128,
+		Height:  32,
+		Address: ssd1306.Address_128_32,
 	})
 	display.ClearDisplay()
-
-	expander, _ := mcp23017.NewI2C(machine.I2C0, 0b0100000)
 
 	d := keyboard.New()
 
@@ -62,20 +70,20 @@ func main() {
 		machine.P0_31,
 	}
 
-	colPinsRight := []mcp23017.Pin{
-		expander.Pin(0),
-		expander.Pin(1),
-		expander.Pin(2),
-		expander.Pin(3),
-		expander.Pin(4),
-		expander.Pin(5),
+	colPinsRight := []int{
+		0,
+		1,
+		2,
+		3,
+		4,
+		5,
 	}
 
-	rowPinsRight := []mcp23017.Pin{
-		expander.Pin(8),
-		expander.Pin(9),
-		expander.Pin(10),
-		expander.Pin(11),
+	rowPinsRight := []int{
+		8,
+		9,
+		10,
+		11,
 	}
 
 	mkLeft := d.AddMatrixKeyboard(colPinsLeft, rowPinsLeft, [][]keyboard.Keycode{
@@ -101,13 +109,40 @@ func main() {
 	mkLeft.SetCallback(func(layer, index int, state keyboard.State) {
 		row := index / len(colPinsLeft)
 		col := index % len(colPinsLeft)
-		fmt.Printf("mkLeft: %d %d %d %d\n", layer, row, col, state)
+		fmt.Printf("left row: %d, col: %d state: %d\n", row, col, state)
 		select {
 		case ch <- RCS{row: row, col: col, state: state}:
 		}
 	})
 
-	mkRight := d.Add
+	mkRight := d.AddExpanderKeyboard(expander, colPinsRight, rowPinsRight, [][]keyboard.Keycode{
+		{
+			jp.KeyZ, jp.KeyU, jp.KeyI, jp.KeyO, jp.KeyP, jp.KeyMinus,
+			jp.KeyH, jp.KeyJ, jp.KeyK, jp.KeyL, jp.KeySemicolon, jp.KeyColon,
+			jp.KeyN, jp.KeyM, jp.KeyComma, jp.KeyPeriod, jp.KeySlash, jp.KeyRightShift,
+			jp.KeyEnter, jp.KeyMod3, jp.KeyBackspace, jp.KeyDelete, 0, 0,
+		},
+		{
+			jp.Key6, jp.Key7, jp.Key8, jp.Key9, jp.Key0, jp.KeyHat,
+			0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0,
+		},
+		{
+			jp.KeyF7, jp.KeyF8, jp.KeyF9, jp.KeyF10, jp.KeyF11, jp.KeyF12,
+			0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0,
+		},
+	}, keyboard.InvertDiode(false))
+	mkRight.SetCallback(func(layer, index int, state keyboard.State) {
+		row := index / len(colPinsRight)
+		col := index % len(colPinsRight)
+		fmt.Printf("right row: %d, col: %d state: %d\n", row, col, state)
+		select {
+		case ch <- RCS{row: row, col: col, state: state}:
+		}
+	})
 
 	go func() {
 		for {
@@ -117,7 +152,7 @@ func main() {
 				if x.state == keyboard.PressToRelease {
 					c = color.RGBA{A: 255}
 				}
-				_ = tinydraw.FilledRectangle(&display, 10+20*int16(x.col), 10+20*int16(x.row), 18, 18, c)
+				_ = tinydraw.FilledRectangle(&display, 10+20*int16(x.col), 8*int16(x.row), 18, 6, c)
 				_ = display.Display()
 			}
 		}
