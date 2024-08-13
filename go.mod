@@ -3,7 +3,7 @@ module keyboardTestSago
 go 1.22
 
 require (
-	github.com/percyjw-2/tinygo-keyboard v0.0.0-20240725141820-34cba97d03fb
+	github.com/percyjw-2/tinygo-keyboard v0.0.0-20240802104124-49a8c32bf0b9
 	tinygo.org/x/drivers v0.28.0
 	tinygo.org/x/tinydraw v0.4.0
 )

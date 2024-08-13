@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/percyjw-2/tinygo-keyboard/keycodes/jp"
+	"github.com/percyjw-2/tinygo-keyboard/rgbanimations"
 	"image/color"
 	"machine"
 	"machine/usb"
 	"time"
 	"tinygo.org/x/drivers/mcp23017"
+	"tinygo.org/x/drivers/ws2812"
 	"tinygo.org/x/tinydraw"
 
 	"tinygo.org/x/drivers/ssd1306"
@@ -51,6 +53,10 @@ func main() {
 		Address: ssd1306.Address_128_32,
 	})
 	display.ClearDisplay()
+
+	ledPin := machine.P1_12
+	ledPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	led := ws2812.NewWS2812(ledPin)
 
 	d := keyboard.New()
 
@@ -115,7 +121,7 @@ func main() {
 		}
 	})
 
-	mkRight := d.AddExpanderKeyboard(expander, colPinsRight, rowPinsRight, [][]keyboard.Keycode{
+	mkRight, err := d.AddExpanderKeyboard(expander, colPinsRight, rowPinsRight, [][]keyboard.Keycode{
 		{
 			jp.KeyZ, jp.KeyU, jp.KeyI, jp.KeyO, jp.KeyP, jp.KeyMinus,
 			jp.KeyH, jp.KeyJ, jp.KeyK, jp.KeyL, jp.KeySemicolon, jp.KeyColon,
@@ -135,10 +141,27 @@ func main() {
 			0, 0, 0, 0, 0, 0,
 		},
 	}, keyboard.InvertDiode(false))
+	if err != nil {
+		fmt.Printf("Error adding expander keyboard: %s\n", err)
+	}
 	mkRight.SetCallback(func(layer, index int, state keyboard.State) {
 		row := index / len(colPinsRight)
 		col := index % len(colPinsRight)
 		fmt.Printf("right row: %d, col: %d state: %d\n", row, col, state)
+		select {
+		case ch <- RCS{row: row, col: col, state: state}:
+		}
+	})
+
+	mkEncoder := d.AddRotaryKeyboard(machine.P0_23, machine.P0_21, [][]keyboard.Keycode{
+		{
+			jp.KeyMediaVolumeDec, jp.KeyMediaVolumeInc,
+		},
+	})
+	mkEncoder.SetCallback(func(layer, index int, state keyboard.State) {
+		row := index / len(colPinsRight)
+		col := index % len(colPinsRight)
+		fmt.Printf("encoder row: %d, col: %d state: %d\n", row, col, state)
 		select {
 		case ch <- RCS{row: row, col: col, state: state}:
 		}
@@ -158,7 +181,15 @@ func main() {
 		}
 	}()
 
+	d.AddRGBMatrix(0x40, 44, rgbLedMap, []keyboard.RgbAnimation{
+		rgbanimations.GetDirectAnim(),
+		rgbanimations.GetSolidColorAnim(),
+		rgbanimations.GetAlphasModsAnim(),
+	}, &led)
+
 	loadKeyboardDef()
+
+	fmt.Printf("Starting main loop\n")
 
 	d.Debug = true
 	err = d.Loop(context.Background())
@@ -166,4 +197,5 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 	}
+	fmt.Printf("Loop exit without Error\n")
 }
