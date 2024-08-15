@@ -121,7 +121,7 @@ func main() {
 		}
 	})
 
-	mkRight, err := d.AddExpanderKeyboard(expander, colPinsRight, rowPinsRight, [][]keyboard.Keycode{
+	mkRight := d.AddExpanderKeyboard(expander, colPinsRight, rowPinsRight, [][]keyboard.Keycode{
 		{
 			jp.KeyZ, jp.KeyU, jp.KeyI, jp.KeyO, jp.KeyP, jp.KeyMinus,
 			jp.KeyH, jp.KeyJ, jp.KeyK, jp.KeyL, jp.KeySemicolon, jp.KeyColon,
@@ -141,9 +141,6 @@ func main() {
 			0, 0, 0, 0, 0, 0,
 		},
 	}, keyboard.InvertDiode(false))
-	if err != nil {
-		fmt.Printf("Error adding expander keyboard: %s\n", err)
-	}
 	mkRight.SetCallback(func(layer, index int, state keyboard.State) {
 		row := index / len(colPinsRight)
 		col := index % len(colPinsRight)
